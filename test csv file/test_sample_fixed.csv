@@ -1,0 +1,6 @@
+age,duration_months,amount,housing,job,sex,foreign_worker
+25,12,5000,rent,skilled,male,0
+35,24,15000,own,management,female,1
+45,36,25000,rent,unskilled,male,0
+55,48,35000,own,skilled,female,0
+30,18,8000,free,skilled,male,1
