@@ -119,11 +119,52 @@ def train():
 	shap_vals = explainer.shap_values(X_te_woe)[1] if isinstance(explainer.shap_values(X_te_woe), list) else explainer.shap_values(X_te_woe)
 	shap_importance = pd.Series(np.abs(shap_vals).mean(axis=0), index=X_te_woe.columns).sort_values(ascending=False)
 	
+	# Compute feature IV on training data and feature PSI between val and test
+	def _compute_iv_for_feature(col: str) -> float:
+		# derive bins for original space then use WoE map
+		if col in woe.bin_edges_:
+			# numeric
+			edges = woe.bin_edges_[col]
+			bins = np.digitize(X_train[col].replace([np.inf, -np.inf], np.nan).fillna(X_train[col].median()).values, edges, right=False) - 1
+			woe_map = woe.woe_map_[col]
+		elif col in woe.categorical_levels_:
+			levels = woe.categorical_levels_[col]
+			cats = pd.Categorical(X_train[col].astype(str).fillna("missing"), categories=levels)
+			bins = cats.codes
+			woe_map = woe.woe_map_[col]
+		else:
+			return 0.0
+		bin_ids = np.unique(bins)
+		pos_total = max(pd.Series(y_train).sum(), 1)
+		neg_total = max(len(y_train) - pd.Series(y_train).sum(), 1)
+		iv = 0.0
+		for b in bin_ids:
+			mask = bins == b
+			pos = np.sum((mask) & (y_train == 1))
+			neg = np.sum((mask) & (y_train == 0))
+			pos_rate = max(pos / pos_total, 1e-10)
+			neg_rate = max(neg / neg_total, 1e-10)
+			woe_val = float(woe_map.get(int(b), 0.0))
+			iv += (pos_rate - neg_rate) * woe_val
+		return float(iv)
+	
+	feature_rows = []
+	for col in X_tr_woe.columns:
+		iv = _compute_iv_for_feature(col)
+		psi_feat = population_stability_index(X_val_woe[col], X_te_woe[col])
+		feature_rows.append({"feature": col, "iv": iv, "psi_val_test": float(psi_feat)})
+	feature_stability_df = pd.DataFrame(feature_rows).sort_values(["iv"], ascending=False)
+	
 	# Save artifacts
 	ARTIFACT_DIR.mkdir(exist_ok=True)
 	joblib.dump(woe, ARTIFACT_DIR / "woe.joblib")
 	joblib.dump(calibrated, ARTIFACT_DIR / "model.joblib")
+	joblib.dump(lgbm, ARTIFACT_DIR / "raw_lgbm.joblib")
 	shap_importance.to_csv(ARTIFACT_DIR / "shap_importance.csv")
+	pd.Series(val_scores).to_csv(ARTIFACT_DIR / "val_scores.csv", index=False)
+	pd.Series(y_val).to_csv(ARTIFACT_DIR / "val_labels.csv", index=False)
+	pd.DataFrame(X_val_woe).to_csv(ARTIFACT_DIR / "X_val_woe.csv", index=False)
+	feature_stability_df.to_csv(ARTIFACT_DIR / "feature_stability.csv", index=False)
 	pd.Series(test_scores).to_csv(ARTIFACT_DIR / "test_scores.csv", index=False)
 	
 	# MLflow logging
@@ -139,7 +180,9 @@ def train():
 				mlflow.log_metric(f"fair_{k}", float(v))
 		mlflow.log_artifact(str(ARTIFACT_DIR / "woe.joblib"))
 		mlflow.log_artifact(str(ARTIFACT_DIR / "model.joblib"))
+		mlflow.log_artifact(str(ARTIFACT_DIR / "raw_lgbm.joblib"))
 		mlflow.log_artifact(str(ARTIFACT_DIR / "shap_importance.csv"))
+		mlflow.log_artifact(str(ARTIFACT_DIR / "feature_stability.csv"))
 	
 	print("Validation metrics:", metrics)
 	print("Best threshold:", best_th, th_stats)
