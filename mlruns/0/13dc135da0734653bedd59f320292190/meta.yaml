@@ -1,0 +1,14 @@
+artifact_uri: file:C:\Users\Administrator\ds projects\mlruns/0/13dc135da0734653bedd59f320292190/artifacts
+end_time: 1759439591839
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+run_id: 13dc135da0734653bedd59f320292190
+run_name: credit_risk_model
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1759439591606
+status: 3
+tags: []
+user_id: Administrator
