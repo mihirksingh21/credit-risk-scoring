@@ -1,0 +1,33 @@
+# Environments
+.venv/
+venv/
+env/
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS/IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets and keys
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*secret*
+*token*
+
+# Data and runs
+mlruns/
+artifacts/
+*.csv
+
+# Streamlit
+.streamlit/secrets.toml
+
